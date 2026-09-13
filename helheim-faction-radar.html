@@ -80,6 +80,21 @@ const labels = ['Verlorene','Suchende','Sammler','Verharrende','Prediger'];
 const outs = ids.map(id => document.getElementById(id + '-out'));
 const inputs = ids.map(id => document.getElementById(id));
 
+const STORAGE_KEY = 'helheim-faction-radar-values';
+
+// Gespeicherte Werte laden, falls vorhanden
+try {
+  const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+  if (saved && Array.isArray(saved) && saved.length === ids.length) {
+    inputs.forEach((input, idx) => {
+      input.value = saved[idx];
+      outs[idx].textContent = saved[idx];
+    });
+  }
+} catch (e) {
+  console.warn('Konnte gespeicherte Werte nicht laden:', e);
+}
+
 const ctx = document.getElementById('radarChart');
 const chart = new Chart(ctx, {
   type: 'radar',
@@ -117,6 +132,11 @@ inputs.forEach((input, idx) => {
     outs[idx].textContent = input.value;
     chart.data.datasets[0].data[idx] = Number(input.value);
     chart.update();
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(inputs.map(i => Number(i.value))));
+    } catch (e) {
+      console.warn('Konnte Werte nicht speichern:', e);
+    }
   });
 });
 </script>
