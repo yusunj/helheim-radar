@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Encounter Creator Offline — Helheim</title>
+<style>
+:root{
+  --bg:#101217;--panel:#181b22;--panel2:#20242d;--text:#edf0f5;--muted:#aeb5c2;
+  --accent:#d6a85f;--accent2:#7fa8d8;--border:#333947;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text)}
+body{font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.45;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+header{padding:26px 5%;border-bottom:1px solid var(--border);background:#0c0e12;padding-top:calc(26px + env(safe-area-inset-top,0px))}
+header h1{margin:0 0 6px;font-size:26px}
+header p{margin:0;color:var(--muted);max-width:70ch}
+main{width:min(1400px,94%);margin:24px auto 60px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px}
+.card h2{font-size:17px;margin:0 0 14px;color:#f4d69e}
+.formgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.formgrid.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:4px}
+input,select{width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:9px 10px;font:inherit}
+input:focus,select:focus{outline:2px solid #7fa8d855;border-color:var(--accent2)}
+button{border:0;border-radius:7px;padding:11px 16px;background:var(--accent);color:#17130d;font-weight:700;cursor:pointer;font-size:14.5px}
+button.secondary{background:#303643;color:var(--text)}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.metricgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.metric{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:12px}
+.metric .v{font-size:19px;font-weight:800}
+.metric .k{font-size:11px;color:var(--muted)}
+.output{background:#0b0d11;border:1px solid var(--border);border-radius:8px;padding:15px;white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;max-height:860px;overflow:auto}
+.saveline{display:flex;gap:8px;align-items:center;margin-top:10px}
+.saveline .note{font-size:12px;color:var(--accent2)}
+@media(max-width:980px){.grid{grid-template-columns:1fr}}
+@media(max-width:650px){.formgrid,.formgrid.two{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Encounter Creator Offline — Helheim</h1>
+  <p>Keine KI nötig: Rolle, Umgebung, Kreaturentyp und Motiv wählen — der Gegner wird aus kuratierten Bausteinen zusammengesetzt. Reroll für Varianten, alle Zahlen bleiben formelbasiert.</p>
+</header>
+<main>
+
+<div class="grid">
+<section>
+
+<div class="card">
+<h2>Party-Setup <span style="color:var(--muted);font-weight:400;font-size:12px">(einmal einstellen, wird gespeichert)</span></h2>
+<div class="formgrid">
+  <div><label>Gruppenstufe</label><input id="level" type="number" min="1" max="20" value="8"></div>
+  <div><label>Anzahl SC</label><input id="players" type="number" min="1" max="10" value="5"></div>
+  <div><label>Ziel-Rundenzahl</label><input id="rounds" type="number" min="1" max="12" value="5"></div>
+  <div><label>Ø AC der SC</label><input id="ac" type="number" min="8" max="30" step=".1" value="17.4"></div>
+  <div><label>Höchster Angriffsbonus der SC</label><input id="topAtk" type="number" min="0" max="20" value="10"></div>
+  <div><label>Guter Save der SC</label><input id="goodSave" type="number" min="0" max="15" value="8"></div>
+  <div><label>Ø Spell-DC der SC-Zauberwirker</label><input id="scDC" type="number" min="8" max="25" value="15"></div>
+  <div><label>Party-DPR (für Gegner-HP)</label><input id="partyDpr" type="number" min="0" value="68"></div>
+  <div><label>Ø HP der SC (für Gegner-Schaden)</label><input id="pcHP" type="number" min="0" value="75"></div>
+</div>
+<div class="saveline">
+  <button class="secondary" onclick="saveParty()">Party-Werte speichern</button>
+  <span class="note" id="savedNote"></span>
+</div>
+</div>
+
+<div class="card">
+<h2>Neuer Gegner</h2>
+<div class="formgrid two">
+  <div><label>Gegnertyp</label>
+    <select id="enemyType" onchange="toggleSwarmField()">
+      <option value="single" selected>Einzelgegner</option>
+      <option value="swarm">Schwarm/Mob (mehrere Gegner)</option>
+    </select>
+  </div>
+  <div id="swarmCountWrap" style="display:none"><label>Anzahl Mob-Mitglieder</label><input id="swarmCount" type="number" min="2" max="20" value="6"></div>
+  <div><label>Rolle</label><select id="role"></select></div>
+  <div><label>Schwierigkeit</label>
+    <select id="difficulty">
+      <option value="moderate">Moderat</option>
+      <option value="hard" selected>Hart</option>
+      <option value="veryhard">Sehr hart</option>
+      <option value="finale">Finale</option>
+    </select>
+  </div>
+  <div><label>Umgebung</label><select id="env"></select></div>
+  <div><label>Kreaturentyp</label><select id="creature"></select></div>
+  <div><label>Motiv</label><select id="motiv"></select></div>
+  <div><label>Minion-Anzahl (leer = Rollen-Standard, nur Einzelgegner)</label><input id="minionsOverride" type="number" min="0" max="20" placeholder="auto"></div>
+  <div><label>Zauberwirker?</label>
+    <select id="isCaster">
+      <option value="auto" selected>Automatisch (nach Rolle)</option>
+      <option value="yes">Ja</option>
+      <option value="no">Nein</option>
+    </select>
+  </div>
+</div>
+<div class="actions">
+<button onclick="runGenerate()">Gegner generieren</button>
+<button class="secondary" onclick="runGenerate(true)">Reroll (gleiche Auswahl, neue Variante)</button>
+<button class="secondary" onclick="copyOutput()">Statblock kopieren</button>
+</div>
+</div>
+
+</section>
+
+<aside>
+<div class="card">
+<h2>Balancing Dashboard</h2>
+<div class="metricgrid">
+<div class="metric"><div class="v" id="mHp">–</div><div class="k">Effective HP</div></div>
+<div class="metric"><div class="v" id="mDpr">–</div><div class="k">Gegner-DPR</div></div>
+<div class="metric"><div class="v" id="mAc">–</div><div class="k">Gegner-AC</div></div>
+<div class="metric"><div class="v" id="mAtk">–</div><div class="k">Angriffsbonus</div></div>
+<div class="metric"><div class="v" id="mDc">–</div><div class="k">Save DC</div></div>
+<div class="metric"><div class="v" id="mRounds">–</div><div class="k">Zielrunden</div></div>
+</div>
+</div>
+<div class="card">
+<h2>Generierter Gegner</h2>
+<div id="output" class="output">Party-Werte prüfen, Auswahl treffen, dann „Gegner generieren" klicken.</div>
+</div>
+</aside>
+</div>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+const num=id=>Number($(id).value)||0;
+const val=id=>$(id).value.trim();
+const pick=arr=>arr[Math.floor(Math.random()*arr.length)];
+const pickN=(arr,n)=>{const c=[...arr];const r=[];while(r.length<n&&c.length){r.push(c.splice(Math.floor(Math.random()*c.length),1)[0]);}return r;};
+
+const ROLE_LABELS={tank:"Tank",controller:"Controller",duelist:"Duelist",bruiser:"Bruiser",artillery:"Artillery",support:"Support",summoner:"Summoner",elite:"Elite",boss:"Boss",raid:"Raid Boss",commander:"Commander"};
+const ROLE_GROUP={tank:"defense",elite:"defense",boss:"defense",raid:"defense",bruiser:"damage",duelist:"damage",artillery:"damage",controller:"control",summoner:"control",support:"control",commander:"control"};
+const PROFILES={
+  tank:{hp:1.15,dpr:.75,actions:2,phases:2,minions:1},
+  controller:{hp:.9,dpr:.75,actions:4,phases:2,minions:3},
+  duelist:{hp:.78,dpr:1.12,actions:4,phases:2,minions:1},
+  bruiser:{hp:1.05,dpr:1.18,actions:3,phases:2,minions:2},
+  artillery:{hp:.7,dpr:1.15,actions:3,phases:1,minions:2},
+  support:{hp:.85,dpr:.6,actions:3,phases:1,minions:4},
+  summoner:{hp:.8,dpr:.72,actions:4,phases:2,minions:6},
+  elite:{hp:.62,dpr:.72,actions:2,phases:1,minions:1},
+  boss:{hp:1,dpr:1,actions:3,phases:2,minions:3},
+  raid:{hp:1.25,dpr:1.08,actions:4,phases:3,minions:4},
+  commander:{hp:.9,dpr:.9,actions:4,phases:2,minions:5}
+};
+// STR zuerst bei "raid" (statt CON), damit Angriffs-Stat und Save-Stat nicht kollidieren.
+const STAT_PRIORITY={
+  tank:["STR","CON","WIS","DEX","CHA","INT"], bruiser:["STR","CON","DEX","WIS","CHA","INT"],
+  duelist:["DEX","CON","WIS","STR","CHA","INT"], artillery:["DEX","INT","CON","WIS","CHA","STR"],
+  controller:["WIS","CON","INT","CHA","DEX","STR"], support:["WIS","CHA","CON","INT","DEX","STR"],
+  summoner:["CHA","CON","WIS","INT","DEX","STR"], elite:["STR","CON","DEX","WIS","CHA","INT"],
+  boss:["STR","CON","CHA","WIS","DEX","INT"], raid:["STR","CON","CHA","WIS","DEX","INT"],
+  commander:["CHA","STR","CON","WIS","DEX","INT"]
+};
+// Nur die 4 "Flavor"-Stats (Angriffs-Stat und CON werden separat aus Angriffsbonus/Boss-Save abgeleitet).
+const ABILITY_BASE={moderate:[14,13,11,9],hard:[15,14,12,10],veryhard:[16,14,12,10],finale:[17,15,12,10]};
+
+const ROLE_TRAITS={
+  defense:["Bedrohliche Präsenz: Verbündete in 10 ft erhalten Vorteil auf Einschüchtern-Checks gegen SC.","Zäh: Bei Reduktion auf 0 HP kann er einmal pro Kampf stattdessen bei 1 HP stehen bleiben (nicht bei Flächenschaden)."],
+  damage:["Blutrausch: Unter 50% HP erhält er +2 auf Schadenswürfe.","Reaktionsschnell: Kann Opportunity Attacks auch gegen Ziele ausführen, die per Zauber/Sprung entkommen."],
+  control:["Konzentrationsbindung: SC in seiner Aura haben Nachteil, ihre Concentration aufrechtzuerhalten.","Geistiger Zugriff: Einmal pro Kampf kann er einen SC zwingen, einen bestandenen Save gegen ihn zu wiederholen."]
+};
+const BONUS_ACTIONS={
+  defense:["Schildstoß: Ziel in 5 ft wird 5 ft zurückgestoßen (kein Schaden).","Konsolidieren: Bewegt sich bis zur halben Geschwindigkeit, ohne Opportunity Attacks auszulösen."],
+  damage:["Zweitwaffe: Ein zusätzlicher Angriff A mit Nachteil.","Vorstoß: Bewegt sich bis zu 10 ft und greift sofort erneut an."],
+  control:["Bannspruch: Ein SC in 30 ft erhält Nachteil auf den nächsten Angriffswurf.","Kurzer Ruf: Ein Minion in 30 ft darf sofort seine Reaction nutzen."]
+};
+const REACTIONS={
+  defense:["Parade: Reduziert den Schaden eines gesehenen Nahkampftreffers spürbar.","Gegenschlag: Nach einem verfehlten Nahkampfangriff auf ihn schlägt er sofort mit Angriff A zurück."],
+  damage:["Ausweichschritt: Bewegt sich 5 ft, bevor der Schaden eines Treffers berechnet wird.","Vergeltung: Nach erlittenem Schaden greift er den Angreifer sofort mit Angriff A an, falls erreichbar."],
+  control:["Bannschutz: Kann einmal pro Runde einen gegen ihn gewirkten Zauber mit Vorteil auf seinen Save abwehren.","Ablenkung: Zwingt einen SC in 30 ft, den nächsten Angriff gegen ein Minion statt gegen ihn zu richten (kein Save)."]
+};
+const LAIR_ACTIONS=["Der Ort selbst reagiert auf ihn: bei Initiative 20 wird ein Arena-Element gegen die SC aktiv.","Bei Initiative 20 verstärkt sich seine Aura kurz: Angriffe gegen SC in 10 ft haben bis zu seinem nächsten Zug Vorteil.","Bei Initiative 20 regeneriert er 1d8 HP, solange er sich in seinem Lair befindet."];
+const SPELL_POOL={
+  control:["Hold Person","Web","Slow","Fear","Counterspell"],
+  damage:["Fireball","Scorching Ray","Lightning Bolt","Eldritch Blast"],
+  defense:["Shield","Blur","Stoneskin","Protection from Energy"]
+};
+const ELEMENTS=[{noun:"Feuer",adj:"feurigen"},{noun:"Kälte",adj:"eisigen"},{noun:"Blitz",adj:"elektrischen"},{noun:"Säure",adj:"ätzenden"},{noun:"Gift",adj:"giftigen"}];
+
+function mod(score){return Math.floor((score-10)/2);}
+function fmtMod(m){return (m>=0?"+":"")+m;}
+function proficiencyForLevel(lvl){ if(lvl>=17)return 6; if(lvl>=13)return 5; if(lvl>=9)return 4; if(lvl>=5)return 3; return 2; }
+function tierOfPlay(lvl){ if(lvl>=17)return 4; if(lvl>=11)return 3; if(lvl>=5)return 2; return 1; }
+function acRoleMod(groupKey){ return {defense:2,damage:0,control:-2}[groupKey]||0; }
+function toggleSwarmField(){ $("swarmCountWrap").style.display = val("enemyType")==="swarm" ? "" : "none"; }
+
+const ENV={
+  katakomben:{label:"Katakomben/Gruft",arena:["Enge Steingänge mit einsturzgefährdeten Nischen und modernden Särgen.","Ein verzweigtes Grabgewölbe voller Nebengänge und blinder Ecken.","Eine Gruft mit brüchigem Boden über einem tieferen Hohlraum."],
+    elements:["Morsche Sarkophage: Deckung, zerbrechen bei Treffern","Einsturzstelle: schwieriges Gelände, kann kollabieren","Knochenhaufen: erschwert Bewegung","Grabnische: halbe Deckung","Fackelhalter: können umgestoßen werden und Feuer legen","Enger Durchgang: Engpass, nur 1 SC gleichzeitig"],
+    mobility:["Ein zweiter Gang führt parallel und kommt nach 2 Runden wieder zusammen.","Ein Loch im Boden erlaubt Abkürzung in die Etage darunter.","Ein herabhängendes Seil erlaubt schnellen Wechsel zwischen Ebenen."],
+    objectives:[{objective:"Ein einstürzender Stützpfeiler muss gesichert werden",skill:"Athletics/Stärke",ignored:"Ein Teil der Arena wird unpassierbar, Gegner nutzt das taktisch",solved:"Ein neuer Fluchtweg/Flankierungsweg öffnet sich"},
+      {objective:"Eine versiegelte Grabkammer verbirgt einen Hebel, der eine Falle deaktiviert",skill:"Investigation/Arcana",ignored:"Die Falle löst jede Runde erneut aus",solved:"Die Falle ist dauerhaft entschärft"}]},
+  wildnis:{label:"Wildnis/Wald",arena:["Ein dichter Wald mit Unterholz und knorrigen Wurzeln.","Eine Lichtung, umgeben von altem, dichtem Baumbestand.","Ein Waldpfad an einem steilen Abhang."],
+    elements:["Dichtes Unterholz: schwieriges Gelände","Alter Baum: kann erklettert werden, halbe Deckung","Bachlauf: schwieriges Gelände, leitet Kälte/Blitz","Herabhängende Äste: können als Falle ausgelöst werden","Wespennest: kann provoziert werden","Steiler Hang: Sturzgefahr bei Zwangsbewegung"],
+    mobility:["Ein Baumwipfelpfad erlaubt erhöhte Bewegung über die ganze Szene.","Ein Wildwechsel führt schnell an den Rand der Lichtung.","Ein umgestürzter Baumstamm verbindet zwei Bereiche als Brücke."],
+    objectives:[{objective:"Ein verwundetes Tier muss beruhigt oder befreit werden, bevor es panisch wird",skill:"Animal Handling",ignored:"Es greift wahllos SC und Gegner an",solved:"Es kämpft künftig auf Seiten der Gruppe oder flieht sicher"},
+      {objective:"Ein magisches Ritualzeichen im Boden muss unterbrochen werden",skill:"Arcana/Religion",ignored:"Der Gegner erhält jede Runde einen Kraftschub",solved:"Der Kraftschub des Gegners endet dauerhaft"}]},
+  eis:{label:"Eis/Frost",arena:["Eine zugefrorene Halle mit spiegelglattem Boden.","Eine Eishöhle mit herabhängenden Eiszapfen.","Ein zugefrorener See mit brüchigen Stellen."],
+    elements:["Glatteis: schwieriges Gelände, Sturzgefahr","Eiszapfen: können herabstürzen und Schaden verursachen","Brüchiges Eis: kann einbrechen, gefährliches Gelände","Schneewehe: blockiert Sichtlinie","Frostnebel: erschwert Fernkampf","Eisspiegel: kann zerbrochen werden, erzeugt scharfe Splitter"],
+    mobility:["Eine Rutschbahn aus Eis erlaubt schnelle Bewegung über die halbe Arena.","Ein gefrorener Wasserfall kann als vertikaler Weg genutzt werden.","Ein Spalt im Eis führt zu einem versteckten Nebenraum."],
+    objectives:[{objective:"Ein magischer Frostkern hält die Kälteaura am Leben und muss zerstört werden",skill:"Arcana/Athletics",ignored:"Die Aura breitet sich weiter aus",solved:"Die Kälteaura des Gegners verschwindet"},
+      {objective:"Ein eingefrorener Gefangener kann befreit werden, bevor das Eis zu dick wird",skill:"Athletics/Medicine",ignored:"Der Gefangene stirbt oder wird zum Verbündeten des Gegners",solved:"Der Gefangene hilft der Gruppe noch im Kampf"}]},
+  ruinenstadt:{label:"Ruinenstadt",arena:["Eingestürzte Häuserzeilen mit engen Gassen.","Ein Marktplatz voller Trümmer und umgestürzter Karren.","Eine zerfallene Festungsmauer mit Durchbrüchen."],
+    elements:["Umgestürzter Karren: Deckung, kann verschoben werden","Einsturzgefährdete Mauer: kollabiert bei genug Schaden","Trümmerhaufen: schwieriges Gelände","Alter Brunnen: kann als Falle oder Fluchtweg dienen","Zerbrochene Statue: halbe Deckung","Verkohlte Balken: brechen bei Gewicht"],
+    mobility:["Ein oberer Balkon erlaubt erhöhte Position und schnellen Wechsel per Sprung.","Ein Kanalsystem darunter erlaubt Abkürzungen.","Eine schmale Mauerkrone verbindet zwei Gebäudeteile."],
+    objectives:[{objective:"Zivilisten sind in einem einsturzgefährdeten Gebäude eingeschlossen",skill:"Athletics/Perception",ignored:"Das Gebäude stürzt ein, Verluste unter Zivilisten",solved:"Alle werden rechtzeitig evakuiert"},
+      {objective:"Ein Alarmglockenseil kann gekappt werden, bevor Verstärkung eintrifft",skill:"Acrobatics/Stealth",ignored:"Nach 3 Runden erscheinen zusätzliche Gegner",solved:"Keine Verstärkung kommt"}]},
+  tempel:{label:"Tempel/Heiligtum",arena:["Eine hohe Halle mit Säulenreihen und einem zentralen Altar.","Ein unterirdisches Heiligtum mit leuchtenden Runenkreisen.","Ein verfallener Schrein mit eingestürztem Dach."],
+    elements:["Altar: kann als Deckung oder Ritualpunkt genutzt werden","Runenkreis: löst Effekt aus, wenn betreten","Säulenreihe: halbe Deckung, teils zerstörbar","Weihrauchbecken: erzeugt Sichtbehinderung","Herabfallender Deckenschutt: gefährliches Terrain","Opferschale: Secondary-Objective-Auslöser"],
+    mobility:["Ein Deckenspalt erlaubt Fernkämpfern erhöhte Sicht und Bewegung an der Decke entlang.","Eine Ritualtreppe führt in eine zweite Ebene.","Ein Geheimgang hinter dem Altar verkürzt Wege."],
+    objectives:[{objective:"Ein Ritual muss unterbrochen werden, bevor es abgeschlossen ist",skill:"Arcana/Religion",ignored:"Der Gegner erhält eine mächtige einmalige Verstärkung",solved:"Das Ritual bricht ab, der Gegner verliert eine Fähigkeit"},
+      {objective:"Eine heilige Reliquie muss geborgen werden, ohne den Altar zu entweihen",skill:"Religion/Sleight of Hand",ignored:"Die Reliquie wird zerstört",solved:"Die Reliquie gibt der Gruppe später Vorteile"}]},
+  lager:{label:"Lager/Kriegsstätte",arena:["Ein befestigtes Lager mit Palisaden und Zelten.","Ein Schlachtfeld voller Gräben und Verhaue.","Ein Wachturm-Komplex mit mehreren Ebenen."],
+    elements:["Palisade: Deckung, kann in Brand gesetzt werden","Waffenständer: SC können improvisierte Waffen nehmen","Grabenlinie: schwieriges Gelände","Signalfeuer: kann Verstärkung rufen oder verhindert werden","Zeltplane: blockiert Sichtlinie kurzzeitig","Belagerungsgerät: kann übernommen werden"],
+    mobility:["Ein Wachturm erlaubt erhöhte Position mit Leiter als Verbindung.","Ein unterirdischer Vorratsgang verbindet zwei Lagerteile.","Ein Wall kann erklettert werden, um Fernkämpfern Reichweite zu geben."],
+    objectives:[{objective:"Das Signalfeuer muss gelöscht werden, bevor Verstärkung gerufen wird",skill:"Athletics/Sleight of Hand",ignored:"Nach 3 Runden erscheinen zusätzliche Gegner",solved:"Keine Verstärkung kommt"},
+      {objective:"Gefangene Verbündete müssen befreit werden, ohne den Wachen aufzufallen",skill:"Stealth/Persuasion",ignored:"Die Gefangenen werden als Geiseln genutzt",solved:"Die Verbündeten unterstützen die Gruppe im Kampf"}]},
+  sumpf:{label:"Sumpf/Moor",arena:["Ein trübes Moor mit versunkenen Pfaden.","Ein Sumpfwald mit hängenden Wurzeln und fauligem Nebel.","Eine Ruine, halb im Morast versunken."],
+    elements:["Morast: schwieriges Gelände, Sturzgefahr","Giftgasblase: kann ausgelöst werden","Hängende Wurzeln: halbe Deckung, können reißen","Trübes Wasser: verdeckt Gefahren am Boden","Treibsand: gefährliches Gelände","Alte Ruine: teils begehbar, teils eingestürzt"],
+    mobility:["Trittsteine erlauben trockenen Weg quer durch den Sumpf.","Ein umgestürzter Baum dient als schmale Brücke.","Ein erhöhter Ruinensims bleibt trocken und bietet Übersicht."],
+    objectives:[{objective:"Eine vergiftete Quelle muss gereinigt werden",skill:"Nature/Medicine",ignored:"Der Gegner regeneriert durch die Verseuchung",solved:"Die Regeneration des Gegners endet"},
+      {objective:"Ein versunkener Schrein muss geborgen werden, bevor er im Morast verschwindet",skill:"Athletics/Investigation",ignored:"Der Schrein ist verloren",solved:"Der Schrein liefert einen taktischen Vorteil"}]},
+  arena:{label:"Arena/Halle",arena:["Eine formelle Kampfarena mit Zuschauerrängen.","Eine große Halle mit poliertem Boden und Wandfackeln.","Eine zeremonielle Kampfstätte mit zentralem Podest."],
+    elements:["Zuschauerrang: erhöhte Position, halbe Deckung","Waffengestell am Rand: improvisierte Waffen verfügbar","Zentrales Podest: taktischer Vorteil bei Kontrolle","Kronleuchter: kann herabstürzen","Absperrkette: schwieriges Gelände","Falltür-Mechanismus: kann ausgelöst werden"],
+    mobility:["Seitliche Balkone erlauben schnellen Wechsel der Kampflinie.","Ein zentrales Podest verbindet beide Kampfhälften direkt.","Versteckte Falltüren erlauben überraschende Positionswechsel."],
+    objectives:[{objective:"Ein Mechanismus muss gestoppt werden, der die Arena verändert",skill:"Arcana/Athletics",ignored:"Die Arena wird zunehmend gefährlicher",solved:"Die Arena bleibt stabil"},
+      {objective:"Verbündete auf den Rängen müssen vor herabstürzenden Trümmern geschützt werden",skill:"Perception/Athletics",ignored:"Unbeteiligte werden verletzt, Konsequenzen später in der Kampagne",solved:"Alle bleiben unversehrt"}]}
+};
+
+const CREATURE={
+  untot:{label:"Untot",resist:"Nekrotisch",immune:"Vergiftet, Erschöpfung, Gift",conditions:["Frightened","Restrained","Poisoned"],dmgType:"nekrotischen",frags:["Knochen-","Grab-","Asche-"],
+    minion:["knöcherne Diener, die auf sein Wort warten","umherirrende Untote, die von seinem Willen gebunden sind"],
+    reach:5,speed:"30 ft",
+    sig:{name:"Grabesfluch",tell:"Ein eisiger Hauch geht durch den Raum.",counter:"Abstand halten oder einen Segen/Schutz vor Untoten wirken.",range:"15 ft Kegel"}},
+  bestie:{label:"Bestie",resist:"keine",immune:"keine",conditions:["Prone","Frightened"],dmgType:"physischen",frags:["Klauen-","Reiß-","Wild-"],
+    minion:["kleinere Raubtiere aus seinem Rudel","instinktgetriebene Beute-Treiber"],
+    reach:5,speed:"40 ft",
+    sig:{name:"Reißender Ansturm",tell:"Die Bestie duckt sich und spannt die Muskeln an.",counter:"Ausweichen (Dodge) oder in Deckung gehen.",range:null}},
+  humanoid:{label:"Humanoid (Söldner/Kult)",resist:"keine",immune:"keine",conditions:["Prone","Restrained"],dmgType:"physischen",frags:["Klingen-","Schild-","Speer-"],
+    minion:["bewaffnete Gefolgsleute, die für ihn kämpfen","Kultisten, die ihm fanatisch dienen"],
+    reach:5,speed:"30 ft",
+    sig:{name:"Gezielter Todesstoß",tell:"Ein kurzer, konzentrierter Blick auf das Ziel.",counter:"Reaction nutzen oder Cover aufsuchen.",range:null}},
+  konstrukt:{label:"Konstrukt",resist:"physisch von nichtmagischen Waffen",immune:"Vergiftet, Bezaubert, Erschöpfung, Gift",conditions:["Restrained","Slowed"],dmgType:"Wucht-",frags:["Eisen-","Rune-","Zahnrad-"],
+    minion:["kleinere Konstrukte, die er steuert","automatisierte Wächter im gleichen Verbund"],
+    reach:10,speed:"30 ft",
+    sig:{name:"Überladungsstoß",tell:"Runen an seinem Körper glühen kurz auf.",counter:"Abstand halten, bevor die Ladung entlädt.",range:"10 ft Radius"}},
+  elementar:{label:"Elementar",resist:"keine",immune:"keine",immuneExtra:"Vergiftet, Erschöpfung",conditions:["Prone","Blinded"],dmgType:"elementaren",frags:["Flammen-","Frost-","Sturm-"],
+    minion:["kleinere Elementarsplitter, die aus ihm hervorgehen","gebundene Geister seines Elements"],
+    reach:10,speed:"30 ft, Fliegen 30 ft (schwebend)",elementPool:ELEMENTS.slice(0,3),
+    sig:{name:"Elementarausbruch",tell:"Sein Körper flackert kurz deutlich heller.",counter:"Abstand halten oder Resistenz-Ausrüstung nutzen.",range:"20 ft Kegel"}},
+  geist:{label:"Fey/Geist",resist:"Psychisch",immune:"Erschöpfung, Bezaubert",conditions:["Frightened","Charmed"],dmgType:"psychischen",frags:["Nebel-","Schatten-","Traum-"],
+    minion:["schwächere Geistwesen, die ihm folgen","Illusionen, die seine Präsenz verstärken"],
+    reach:5,speed:"30 ft, Fliegen 40 ft (schwebend)",
+    sig:{name:"Seelenschrei",tell:"Ein durchdringender, unwirklicher Klang erfüllt den Raum.",counter:"Ohren zuhalten (Reaction) oder Abstand halten.",range:"20 ft Radius"}},
+  drache:{label:"Drakonisch",resist:"keine",immune:"keine",conditions:["Frightened","Prone"],dmgType:"elementaren",frags:["Schuppen-","Klauen-","Flammen-"],
+    minion:["kleinere drakonische Diener","eingeschworene Kultisten seiner Blutlinie"],
+    reach:10,speed:"40 ft, Fliegen 80 ft",elementPool:ELEMENTS,
+    sig:{name:"Odemattacke",tell:"Er holt hörbar Luft, seine Kehle beginnt zu glühen.",counter:"Deckung suchen oder Reaction zum Ausweichen nutzen.",range:"30 ft Kegel/Linie"}},
+  aberration:{label:"Aberration",resist:"Psychisch",immune:"Bezaubert",conditions:["Frightened","Incapacitated"],dmgType:"psychischen",frags:["Wind-","Leer-","Fremd-"],
+    minion:["verzerrte Ableger seiner selbst","von ihm korrumpierte Kreaturen"],
+    reach:10,speed:"30 ft, Fliegen 30 ft (schwebend)",
+    sig:{name:"Geistesriss",tell:"Die Realität um ihn flimmert kurz sichtbar.",counter:"Concentration-Zauber brechen oder Abstand halten.",range:"20 ft Radius"}}
+};
+// Löst elementabhängige Kreaturen (Elementar/Drache) zur Laufzeit auf: wählt EIN Element, setzt Immunität/Schadenstyp konsistent.
+function resolveCreature(key){
+  const base=CREATURE[key]; const cre=Object.assign({},base);
+  if(base.elementPool){
+    const el=pick(base.elementPool);
+    cre.dmgType=el.adj;
+    cre.immune=base.immuneExtra?(el.noun+", "+base.immuneExtra):el.noun;
+  }
+  return cre;
+}
+
+const MOTIV={
+  rache:{titles:["der Unversöhnliche","die Rachsüchtige","der Grolltragende"],identity:["{name} sucht Vergeltung für einen Verlust, den {er} niemals verwunden hat.","{name} hat geschworen, jeden zu vernichten, der mit dem alten Unrecht in Verbindung steht.","In {name} brennt ein Groll, der jede Vorsicht überlagert."]},
+  pflicht:{titles:["der Wächter","die Unbeugsame","der letzte Posten"],identity:["{name} hält seinen Posten, weil ein Eid es verlangt — lange nachdem der Grund dafür vergessen ist.","{name} verteidigt diesen Ort, weil niemand sonst es tun würde.","{name} folgt einem Befehl, den außer {ihm} niemand mehr kennt."]},
+  verzweiflung:{titles:["der Gebrochene","die Verzweifelte","der Getriebene"],identity:["{name} kämpft, weil es keinen anderen Ausweg mehr gibt.","{name} ist von einem Fluch getrieben, den {er} nicht kontrollieren kann.","{name} weiß, dass dieser Kampf verloren ist — und kämpft trotzdem."]},
+  gier:{titles:["der Habgierige","die Berechnende","der Verräter"],identity:["{name} verteidigt etwas, das {ihm} nicht gehört, aber das {er} um keinen Preis hergeben will.","{name} hat andere verraten, um an diese Macht zu gelangen.","{name} sieht in diesem Kampf nur eine Gelegenheit, mehr zu gewinnen."]},
+  fanatismus:{titles:["der Gläubige","die Erwählte","der Prediger"],identity:["{name} ist überzeugt, im Auftrag einer höheren Macht zu handeln.","{name} sieht in der Gruppe Ketzer, die es aufzuhalten gilt.","{name} opfert alles für einen Glauben, den {er} nie hinterfragt hat."]},
+  instinkt:{titles:["der Territoriale","die Wache des Reviers","der Ungezähmte"],identity:["{name} verteidigt sein Revier, ohne Rücksicht auf Verhandlung.","{name} handelt aus reinem Überlebensinstinkt.","{name} greift an, weil die Gruppe in sein Territorium eingedrungen ist."]},
+  wahnsinn:{titles:["der Wahnsinnige","die Verzerrte","der Entstellte"],identity:["{name} folgt einer Logik, die für Außenstehende keinen Sinn ergibt.","{name} wurde von etwas verändert, das {ihn} nicht mehr loslässt.","{name} kämpft mit einer Entschlossenheit, die an Wahnsinn grenzt."]}
+};
+
+const ATTACK_A_NAMES=["Reißender Griff","Lähmender Biss","Blendender Hieb","Fessler-Schlag","Zielender Stich"];
+const ATTACK_B_NAMES=["Verheerender Schlag","Vernichtender Hieb","Zermalmender Stoß","Tödlicher Fangschuss","Brechender Schlag"];
+const ATTACK_B_TELL=["Seine Waffe lädt sich sichtbar auf.","Ein kurzes Innehalten kündigt den Schlag an.","Der Boden vibriert spürbar unter seinen Füßen.","Ein greller Schein kündigt den Angriff an.","Er holt mit dem ganzen Körper sichtbar aus."];
+const SIGNATURE={
+  damage:{names:["Todesstoß","Verheerender Hieb","Finaler Schnitt"],tells:["Die Waffe beginnt zu glühen.","Er holt mit dem ganzen Körper sichtbar aus.","Seine Augen fixieren unverwandt ein Ziel."],counter:["Cover suchen oder eine Reaction nutzen.","Ausweichen (Disengage/Dodge) vor dem Treffer.","Den Angriff durch Kontrollzauber unterbrechen."]},
+  control:{names:["Bannfluch","Kettenzauber","Machtwort"],tells:["Runen leuchten kurz am Boden auf.","Eine unnatürliche Stille legt sich über den Raum.","Er beginnt eine sichtbare Geste/Kanalisierung."],counter:["Save nutzen oder Concentration-Zauber des Gegners brechen.","Sichtlinie/Abstand unterbrechen.","Reaction nutzen, um dem Effekt zu entgehen."]},
+  defense:{names:["Schildwall","Vergeltungsschlag","Bollwerk-Manöver"],tells:["Er nimmt sichtbar eine defensive Haltung ein.","Ein Energiefeld flackert kurz um ihn auf.","Er brüllt eine Herausforderung, bevor er reagiert."],counter:["Fokus verteilen statt alles auf ihn zu konzentrieren.","Positionswechsel, um der Konter-Reichweite zu entgehen.","Objective nutzen, um seine Verteidigung zu senken."]}
+};
+const ENEMY_CONS=["{trigger}: SC nehmen zusätzlich 1d4 {dmg} Schaden.","{trigger}: SC erhalten Nachteil auf den nächsten Angriff.","{trigger}: SC werden 5 ft zwangsversetzt.","{trigger}: SC verlieren ihre Reaction bis zum nächsten Zug.","{trigger}: SC-Bewegung sinkt um 10 ft bis zum nächsten Zug.","{trigger}: SC nehmen Nachteil auf den nächsten Save."];
+const ENEMY_TRIGGERS=["Kritischer Treffer","Zwei Treffer in einer Runde","Treffer durch die Recharge-Fähigkeit","Fehlgeschlagener Save"];
+const PLAYER_CONS=["Gezielter Treffer: Gegner erhält Nachteil auf den nächsten Angriff.","Kritischer Treffer: eine Fähigkeit des Gegners wird für 1 Runde blockiert.","Erfolgreicher Save-Zauber: Gegner verliert seine Bonus Action.","Konzentrierter Fokus (3+ Treffer in Folge): Gegner-Rüstung/-Schutz sinkt sichtbar.","Treffer auf ein markiertes Schwachziel: doppelter Effekt."];
+const MINION_GENERIC=["Sie greifen unabhängig an und binden zusätzliche Aufmerksamkeit.","Sie schützen den Hauptgegner und blockieren Wege zu ihm.","Sie tauchen gestaffelt auf, um die Action Economy zu verlängern."];
+const NAMES=["Vaelgor","Skarn","Ithra","Morvain","Ysolde","Draug","Kaelin","Brynja","Orrin","Sable","Wrathe","Nyx"];
+
+function difficultyMultiplier(d){return {moderate:.82,hard:1,veryhard:1.15,finale:1.3}[d]||1;}
+// Rundenschaden-Ziel als % der Ø-SC-HP: hard ≈ "taktischer Boss" (tötet in 3 Runden), finale ≈ "tödlicher Boss" (tötet in 2 Runden).
+const DIFF_DMG_PCT={moderate:.20,hard:.28,veryhard:.38,finale:.50};
+// Flächenschaden der Recharge-Fähigkeit (Save halbiert), ebenfalls Ø-SC-HP-basiert.
+const AOE_PCT={moderate:.30,hard:.38,veryhard:.46,finale:.55};
+const HIT_CHANCE_BY_DIFF={moderate:55,hard:65,veryhard:72,finale:78};
+const FAIL_CHANCE_BY_DIFF={moderate:40,hard:50,veryhard:58,finale:65};
+const SAVE_SUCCESS_BY_DIFF={moderate:.50,hard:.60,veryhard:.70,finale:.80};
+
+// Wandelt einen Ziel-Durchschnittsschaden in eine plausible Würfelnotation um.
+// Mehr Würfel statt großem Flat-Bonus: der Bonus bleibt dadurch proportional klein, auch bei hohem Zielschaden.
+function diceFromAvg(avg){
+  avg=Math.max(3,Math.round(avg));
+  const dieAvg=5.5;
+  const count=Math.max(1,Math.min(6,Math.round(avg/6)));
+  const bonus=Math.max(0,Math.round(avg-count*dieAvg));
+  return count+"d10"+(bonus>0?("+"+bonus):"");
+}
+function evPerHitAttack(roundBudget,attacks,hitChancePct){
+  return roundBudget/Math.max(0.25,attacks*(hitChancePct/100));
+}
+function evPerHitSaveHalf(roundBudget,failChancePct){
+  const f=failChancePct/100;
+  const denom=Math.max(0.3,f+(1-f)*0.5);
+  return roundBudget/denom;
+}
+function attackBonusFromChance(ac,chance){return Math.round((chance/100*20)+ac-21);}
+function saveDCFromChance(save,failChance){return Math.round(save+1+20*(failChance/100));}
+
+function fillSelect(id,obj,defaultKey){
+  const sel=$(id); sel.innerHTML="";
+  Object.keys(obj).forEach(k=>{
+    const o=document.createElement("option"); o.value=k; o.textContent=obj[k].label||ROLE_LABELS[k];
+    if(k===defaultKey)o.selected=true;
+    sel.appendChild(o);
+  });
+}
+fillSelect("role",Object.fromEntries(Object.keys(ROLE_LABELS).map(k=>[k,{label:ROLE_LABELS[k]}])),"controller");
+fillSelect("env",ENV,"katakomben");
+fillSelect("creature",CREATURE,"untot");
+fillSelect("motiv",MOTIV,"rache");
+
+function saveParty(){
+  try{
+    const data={level:val("level"),players:val("players"),rounds:val("rounds"),ac:val("ac"),topAtk:val("topAtk"),goodSave:val("goodSave"),scDC:val("scDC"),partyDpr:val("partyDpr"),pcHP:val("pcHP")};
+    localStorage.setItem("helheim_encounter_offline_v2",JSON.stringify(data));
+    $("savedNote").textContent="Gespeichert."; setTimeout(()=>$("savedNote").textContent="",2000);
+  }catch(e){ $("savedNote").textContent="Speichern nicht möglich."; }
+}
+function loadParty(){
+  try{
+    const raw=localStorage.getItem("helheim_encounter_offline_v2"); if(!raw)return;
+    const d=JSON.parse(raw);
+    ["level","players","rounds","ac","topAtk","goodSave","scDC","partyDpr","pcHP"].forEach(k=>{ if(d[k]) $(k).value=d[k]; });
+  }catch(e){}
+}
+
+function computeBudget(){
+  const lvl=num("level"),players=num("players"),rounds=Math.max(1,num("rounds"));
+  const partyDpr=num("partyDpr"),ac=num("ac"),goodSave=num("goodSave"),pcHP=Math.max(1,num("pcHP")||75);
+  const topAtk=num("topAtk")||10, scDC=Math.max(8,num("scDC")||15);
+  const diffKey=val("difficulty");
+  const diff=difficultyMultiplier(diffKey);
+  const roleKey=val("role"); const profile=PROFILES[roleKey]||PROFILES.boss;
+  const groupKey=ROLE_GROUP[roleKey];
+
+  const effectiveHP=Math.max(50,Math.round(partyDpr*rounds*profile.hp*diff));
+  const dmgPct=DIFF_DMG_PCT[diffKey]||.28;
+  const dpr=Math.round(Math.max(4,pcHP*dmgPct*profile.dpr));
+
+  const hitChance=HIT_CHANCE_BY_DIFF[diffKey]||65;
+  const heavyHitChance=Math.max(35,hitChance-12);
+  const failChance=FAIL_CHANCE_BY_DIFF[diffKey]||50;
+  const saveSuccessTarget=SAVE_SUCCESS_BY_DIFF[diffKey]||.6;
+
+  const atk=attackBonusFromChance(ac,hitChance);
+  const heavyAtk=attackBonusFromChance(ac,heavyHitChance);
+  const dc=saveDCFromChance(goodSave,failChance);
+  const enemyAC=Math.max(10,Math.round(topAtk+11+acRoleMod(groupKey)));
+
+  const proficiency=proficiencyForLevel(lvl);
+  // Boss-Save: Bonus, den der Gegner braucht, um gegen den Spell-DC der SC mit Zieltrefferquote zu bestehen.
+  const bossSaveBonus=Math.max(proficiency-2,Math.round(scDC-21+20*saveSuccessTarget));
+
+  const order=STAT_PRIORITY[roleKey]||STAT_PRIORITY.boss;
+  let attackKey=order[0]; if(attackKey==="CON") attackKey=order[1];
+  const remainingKeys=order.filter(k=>k!=="CON"&&k!==attackKey);
+  const baseVals=ABILITY_BASE[diffKey]||ABILITY_BASE.hard;
+  const stats={};
+  stats[attackKey]=10+2*(atk-proficiency);
+  stats.CON=10+2*(bossSaveBonus-proficiency);
+  remainingKeys.forEach((k,i)=>stats[k]=baseVals[i]!==undefined?baseVals[i]:8);
+
+  const minionsOverride=val("minionsOverride");
+  const minions=minionsOverride!==""?Number(minionsOverride):profile.minions;
+  const phases=profile.phases, actions=profile.actions+(minions>0?1:0);
+
+  const cap=pcHP*0.6;
+  const perHitA=Math.min(cap,evPerHitAttack(dpr*0.25,1,hitChance));
+  const perHitB_base=Math.min(cap,evPerHitAttack(dpr*0.5,1,heavyHitChance));
+  const perHitB_punish=Math.min(cap,evPerHitAttack(dpr*1.0,1,heavyHitChance));
+
+  const aoePct=AOE_PCT[diffKey]||.38;
+  const aoeCap=pcHP*0.7;
+  const aoeFull=Math.min(aoeCap,pcHP*aoePct);
+
+  const isLegendary=["boss","raid","commander"].includes(roleKey);
+  const isLair=roleKey==="raid";
+  const casterSel=val("isCaster");
+  const isCaster=casterSel==="yes"?true:casterSel==="no"?false:["controller","support","summoner"].includes(roleKey);
+  const legendaryResistCount=tierOfPlay(lvl);
+
+  return {lvl,players,rounds,ac,topAtk,goodSave,scDC,partyDpr,pcHP,diffKey,diff,roleKey,groupKey,profile,effectiveHP,dpr,atk,heavyAtk,dc,enemyAC,
+    minions,phases,actions,hitChance,heavyHitChance,failChance,saveSuccessTarget,proficiency,bossSaveBonus,stats,statOrder:order,attackKey,
+    isLegendary,isLair,isCaster,legendaryResistCount,
+    dmgA:diceFromAvg(perHitA), dmgB_base:diceFromAvg(perHitB_base), dmgB_punish:diceFromAvg(perHitB_punish),
+    aoeDamage:diceFromAvg(aoeFull)};
+}
+
+function computeSwarmBudget(){
+  const lvl=num("level"),rounds=Math.max(1,num("rounds"));
+  const partyDpr=num("partyDpr"),ac=num("ac"),topAtk=num("topAtk")||10,pcHP=Math.max(1,num("pcHP")||75);
+  const diffKey=val("difficulty");
+  const diff=difficultyMultiplier(diffKey);
+  const roleKey=val("role"); const profile=PROFILES[roleKey]||PROFILES.boss;
+  const count=Math.max(2,num("swarmCount")||6);
+  const totalHP=Math.max(50,Math.round(partyDpr*rounds*profile.hp*diff));
+  const perHP=Math.max(6,Math.round(totalHP/count));
+  const dmgPct=DIFF_DMG_PCT[diffKey]||.28;
+  const dprTotal=Math.round(Math.max(4,pcHP*dmgPct*profile.dpr));
+  const hitChance=Math.max(45,(HIT_CHANCE_BY_DIFF[diffKey]||65)-8); // Mob-Mitglieder einzeln etwas ungenauer
+  const atk=attackBonusFromChance(ac,hitChance);
+  const enemyAC=Math.max(10,Math.round(topAtk+11));
+  const cap=pcHP*0.6;
+  const perAttackAvg=Math.min(cap/Math.max(1,Math.ceil(count/2)),dprTotal/Math.max(1,count*(hitChance/100)));
+  return {lvl,rounds,ac,partyDpr,pcHP,roleKey,profile,count,totalHP,perHP,atk,enemyAC,hitChance,dprTotal,
+    perHitDamage:diceFromAvg(Math.max(3,perAttackAvg))};
+}
+
+function runGenerate(){
+  if(val("enemyType")==="swarm"){ runGenerateSwarm(); return; }
+  const b=computeBudget();
+  $("mHp").textContent=b.effectiveHP; $("mDpr").textContent=b.dpr;
+  $("mAc").textContent=b.enemyAC;
+  $("mAtk").textContent=(b.atk>=0?"+":"")+b.atk; $("mDc").textContent=b.dc;
+  $("mRounds").textContent=b.rounds;
+
+  const env=ENV[val("env")], cre=resolveCreature(val("creature")), mot=MOTIV[val("motiv")];
+  const group=SIGNATURE[b.groupKey];
+  const name=pick(cre.frags)+pick(NAMES)+", "+pick(mot.titles);
+  const pron=Math.random()<0.5?{er:"er",ihm:"ihm",ihn:"ihn"}:{er:"sie",ihm:"ihr",ihn:"sie"};
+  const identity=pick(mot.identity).replace("{name}",name).replace(/{er}/g,pron.er).replace(/{ihm}/g,pron.ihm).replace(/{ihn}/g,pron.ihn);
+  const obj=pick(env.objectives);
+  const elements=pickN(env.elements,4);
+  const [condA,condB]=pickN(cre.conditions,Math.min(2,cre.conditions.length));
+  const nameA=pick(ATTACK_A_NAMES), nameB=pick(ATTACK_B_NAMES), tellB=pick(ATTACK_B_TELL);
+  const sigName=cre.sig.name, sigTell=cre.sig.tell, sigCounter=cre.sig.counter;
+  const enemyCons=pickN(ENEMY_TRIGGERS,2).map(t=>pick(ENEMY_CONS).replace("{trigger}",t).replace("{dmg}",cre.dmgType));
+  const playerCons=pickN(PLAYER_CONS,2);
+  const minionConcept=b.minions>0?pick(cre.minion)+" — "+pick(MINION_GENERIC):"";
+  const timeline=Array.from({length:b.rounds},(_,i)=>`Runde ${i+1}: `+(i===0?"normale Arena, Gegner testet die Gruppe aus.":i===b.rounds-1?"Endphase, Arena/Gegner an ihrer instabilsten Stelle.":pick(elements)+" wird relevant."));
+  const phase1=`Kontrolliert ${env.label.toLowerCase()} taktisch, nutzt ${nameA} zum Setup und hält Abstand zum Objective.`;
+  const phase2=`Wird aggressiver, kombiniert ${nameA}+${nameB} gezielt, setzt ${sigName} häufiger ein. Pool füllt sich beim Wechsel einmal komplett auf, alle aktiven Zustände am Gegner enden (Mythic-HP-Prinzip).`;
+  const phase3=b.phases>=3?`Letzte Verzweiflung: ${sigName} praktisch jede Runde, Arena wird instabil.`:null;
+
+  const trait=pick(ROLE_TRAITS[b.groupKey]);
+  const bonusAct=pick(BONUS_ACTIONS[b.groupKey]);
+  const reaction=pick(REACTIONS[b.groupKey]);
+  const statLine=b.statOrder.map(k=>`${k} ${b.stats[k]} (${fmtMod(mod(b.stats[k]))})`).join("  ·  ");
+
+  const rangedOption = cre.sig.range
+    ? `${sigName} (${cre.sig.range}) — trifft mehrere Ziele im Bereich`
+    : (b.roleKey==="artillery"
+        ? `Wurfangriff: +${b.atk} to hit, Reichweite 20/60 ft, ${b.dmgA}`
+        : `keine dedizierte Fernkampf-Fähigkeit — nutzt Bewegung (${cre.speed}), um jede Runde aktiv an mindestens einen SC heranzukommen.`);
+
+  let legendaryBlock="";
+  if(b.isLegendary){
+    legendaryBlock=`
+──────────────────────────────────────────────────
+LEGENDARY ACTIONS (3 pro Runde, nur am Ende des Zugs eines anderen)
+──────────────────────────────────────────────────
+• Bewegung (Kosten 1): Bewegt sich bis zur halben Geschwindigkeit ohne Opportunity Attacks.
+• ${nameA} (Kosten 1): Ein Angriff mit +${b.atk} to hit, ${b.dmgA}.
+• ${sigName}-Echo (Kosten 2): Reduzierte Version von ${sigName}, halber Würfelertrag.
+• Legendary Resistance (${b.legendaryResistCount}/Tag): Bei einem fehlgeschlagenen Save kann er stattdessen bestehen.`;
+  }
+  let lairBlock="";
+  if(b.isLair){
+    lairBlock=`
+──────────────────────────────────────────────────
+LAIR ACTIONS (Initiative 20)
+──────────────────────────────────────────────────
+${pickN(LAIR_ACTIONS,2).map(x=>"• "+x).join("\n")}`;
+  }
+  let spellBlock="";
+  if(b.isCaster){
+    const spellAbility=["INT","WIS","CHA"].includes(b.attackKey)?b.attackKey:"WIS";
+    spellBlock=`
+──────────────────────────────────────────────────
+SPELLCASTING (optional)
+──────────────────────────────────────────────────
+Spellcasting Ability: ${spellAbility}  ·  Save DC ${b.dc}  ·  Angriffsbonus ${b.atk>=0?"+":""}${b.atk}
+Thematische Zauber (Details/Slots nach Bedarf ausbauen): ${pickN(SPELL_POOL[b.groupKey],3).join(", ")}`;
+  }
+
+  const out=
+`══════════════════════════════════════════════════
+${name.toUpperCase()}
+${ROLE_LABELS[b.roleKey].toUpperCase()} · ${cre.label} · ${env.label}
+══════════════════════════════════════════════════
+
+IDENTITY:
+${identity}
+
+──────────────────────────────────────────────────
+STATS (Proficiency +${b.proficiency}, Tier ${tierOfPlay(b.lvl)})
+──────────────────────────────────────────────────
+AC ${b.enemyAC}  ·  ${statLine}
+Boss-Save (CON, gegen SC-Spell-DC ${b.scDC}): ${fmtMod(b.bossSaveBonus)} — besteht zu ca. ${Math.round(b.saveSuccessTarget*100)}%
+
+──────────────────────────────────────────────────
+DEFENSE
+──────────────────────────────────────────────────
+EFFECTIVE HP BUDGET: ${b.effectiveHP} (${b.phases} Phase(n), ca. ${Math.round(b.effectiveHP/b.phases)} HP/Phase; bei Phasenwechsel füllt sich der Pool einmal komplett auf und aktive Zustände am Gegner enden)
+Resistances: ${cre.resist}
+Immunities: ${cre.immune}
+Special Ability: ${trait}
+
+──────────────────────────────────────────────────
+MOBILITY & REICHWEITE
+──────────────────────────────────────────────────
+Speed: ${cre.speed}  ·  Nahkampf-Reichweite: ${cre.reach} ft
+Fernkampf-Option: ${rangedOption}
+
+──────────────────────────────────────────────────
+OFFENSE (Multiattack: ${nameA} + ${nameB})
+──────────────────────────────────────────────────
+Angriffsbonus: +${b.atk} (${nameA}) / +${b.heavyAtk} (${nameB})  ·  Save DC: ${b.dc}  ·  Rundenschaden-Ziel auf fokussiertes SC: ~${b.dpr} (${Math.round(b.dpr/b.pcHP*100)}% von ${b.pcHP} HP)
+
+${nameA.toUpperCase()} (Setup)
++${b.atk} to hit · ${b.dmgA}
+Bei Treffer zusätzlich: Ziel muss DC ${b.dc} bestehen oder ist ${condA||"Prone"} bis zum Ende seines nächsten Zugs.
+
+${nameB.toUpperCase()} (Tell & Bestrafung)
++${b.heavyAtk} to hit · ${b.dmgB_base} normal — ${b.dmgB_punish}, falls Ziel aktuell ${condA||"Prone"} ist
+Tell: ${tellB}
+
+${sigName.toUpperCase()} (Recharge 5-6, Fläche: ${cre.sig.range||"nahe Reichweite, betrifft alle in 10 ft"})
+DC ${b.dc} · ${b.aoeDamage} (Save = halber Schaden)
+Bei misslungenem Save zusätzlich: ${condB||condA||"Frightened"} bis zum Ende des nächsten Zugs.
+Tell: ${sigTell}
+Counterplay: ${sigCounter}
+
+BONUS ACTION: ${bonusAct}
+REACTION: ${reaction}
+${spellBlock}${legendaryBlock}${lairBlock}
+
+──────────────────────────────────────────────────
+ACTION ECONOMY
+──────────────────────────────────────────────────
+Action Slots: ${b.actions}
+Minions: ${b.minions}${minionConcept?" — "+minionConcept:""}
+
+──────────────────────────────────────────────────
+CONSEQUENCES
+──────────────────────────────────────────────────
+Gegner → Spieler:
+${enemyCons.map(x=>"• "+x).join("\n")}
+
+Spieler → Gegner:
+${playerCons.map(x=>"• "+x).join("\n")}
+
+──────────────────────────────────────────────────
+SECONDARY OBJECTIVE
+──────────────────────────────────────────────────
+${obj.objective}
+Skill: ${obj.skill}
+Wenn ignoriert: ${obj.ignored}
+Wenn gelöst: ${obj.solved}
+
+──────────────────────────────────────────────────
+ARENA & MOBILITY
+──────────────────────────────────────────────────
+Arena: ${pick(env.arena)}
+Mobility: ${pick(env.mobility)}
+Interaktive Elemente:
+${elements.map(x=>"• "+x).join("\n")}
+
+Timeline:
+${timeline.map(x=>"• "+x).join("\n")}
+
+──────────────────────────────────────────────────
+PHASES
+──────────────────────────────────────────────────
+Phase 1 – ${phase1}
+
+Phase 2 – ${phase2}
+${phase3?"\nPhase 3 – "+phase3:""}
+Trigger: Phase 2 bei 50% HP.${b.phases>=3?" Phase 3 bei 20% HP.":""}
+
+──────────────────────────────────────────────────
+DESIGN-REFERENZ
+──────────────────────────────────────────────────
+Rolle: ${ROLE_LABELS[b.roleKey]} · Kreaturentyp: ${cre.label} · Umgebung: ${env.label} · Motiv: ${pick(mot.titles)}
+Schwierigkeit: ${b.diffKey}
+Gruppe: Stufe ${b.lvl}, ${b.players} SC, Party-DPR ${b.partyDpr}, Ø AC ${b.ac}, höchster SC-Angriffsbonus +${b.topAtk}, Ø Save +${b.goodSave}, Ø SC-Spell-DC ${b.scDC}, Ø SC-HP ${b.pcHP}
+══════════════════════════════════════════════════`;
+  $("output").textContent=out;
+}
+
+function runGenerateSwarm(){
+  const b=computeSwarmBudget();
+  const env=ENV[val("env")], cre=resolveCreature(val("creature")), mot=MOTIV[val("motiv")];
+  $("mHp").textContent=b.totalHP+" (gesamt)"; $("mDpr").textContent=b.dprTotal;
+  $("mAc").textContent=b.enemyAC;
+  $("mAtk").textContent=(b.atk>=0?"+":"")+b.atk; $("mDc").textContent="–";
+  $("mRounds").textContent=b.rounds;
+
+  const groupName=pick(cre.frags)+pick(NAMES)+"-Meute";
+  const identity=`Ein Schwarm aus ${b.count} ${cre.label}-Wesen, die gemeinsam jagen und sich gegenseitig Rückendeckung geben.`;
+  const nameA=pick(ATTACK_A_NAMES);
+
+  const out=
+`══════════════════════════════════════════════════
+${groupName.toUpperCase()} (SCHWARM, ×${b.count})
+${cre.label.toUpperCase()} · ${env.label}
+══════════════════════════════════════════════════
+
+IDENTITY:
+${identity}
+
+──────────────────────────────────────────────────
+MOB-MITGLIED (einzeln)
+──────────────────────────────────────────────────
+AC ${b.enemyAC}  ·  HP pro Mitglied: ${b.perHP}  (Gesamt-HP-Budget des Schwarms: ${b.totalHP})
+Speed: ${cre.speed}  ·  Reichweite: ${cre.reach} ft
+Resistances: ${cre.resist}
+Immunities: ${cre.immune}
+
+${nameA.toUpperCase()}
++${b.atk} to hit · ${b.perHitDamage}
+
+Mob-Taktik: Ab 3 Mitgliedern in 5 ft desselben Ziels erhält der Angriff Vorteil (wie Pack Tactics).
+
+──────────────────────────────────────────────────
+ACTION ECONOMY
+──────────────────────────────────────────────────
+Jedes Mitglied handelt einzeln (${b.count} Aktionen/Runde gesamt). Gestaffelt auflösen: 2-3 SC gleichzeitig binden, Rest nachrücken lassen für Mobility.
+
+──────────────────────────────────────────────────
+TAKTIK-HINWEIS
+──────────────────────────────────────────────────
+Schwarm greift bevorzugt vereinzelte SC an, weicht bei <30% Restzahl zurück statt bis zum letzten Mitglied zu kämpfen.
+
+──────────────────────────────────────────────────
+DESIGN-REFERENZ
+──────────────────────────────────────────────────
+Kreaturentyp: ${cre.label} · Umgebung: ${env.label} · Motiv: ${pick(mot.titles)}
+Schwierigkeit: ${val("difficulty")} · Mitglieder: ${b.count}
+Gruppe: Stufe ${b.lvl}, Party-DPR ${b.partyDpr}, Ø AC ${b.ac}, Ø SC-HP ${b.pcHP}
+══════════════════════════════════════════════════`;
+  $("output").textContent=out;
+}
+
+function copyOutput(){
+  const text=$("output").textContent;
+  navigator.clipboard?.writeText(text).then(()=>{});
+}
+
+loadParty();
+toggleSwarmField();
+</script>
+</body>
+</html>
